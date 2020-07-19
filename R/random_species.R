@@ -12,8 +12,9 @@
 #'
 #' @param \dots Further arguments passed to or from other methods.
 #' @keywords phyloregion
-#' @importFrom rgeos gConvexHull
-#' @importFrom sp spsample SpatialPolygonsDataFrame
+#' @importFrom sp spsample SpatialPolygonsDataFrame Polygon
+#' @importFrom sp Polygons SpatialPolygons
+#' @importFrom grDevices chull
 #' @importFrom raster bind
 #'
 #' @return A polygon shapefile of species' extent of occurrence ranges.
@@ -24,13 +25,14 @@
 
 random_species <- function(n, species, shp, ...) {
   x <- sample(n, species, replace = TRUE, ...)
-
+  x[x < 4] <- 4L
   y <- vector("list", length(x))
   for (i in seq_along(x)) {
-    sp <- sample(c("random", "regular", "stratified",
-      "nonaligned", "hexagonal", "clustered"), 6)
-    v <- sp::spsample(shp, x[i], type = sp[1], iter = 10, ...)
-    k <- rgeos::gConvexHull(v)
+    sp <- sample(c("random", "regular", "nonaligned", "hexagonal"), 1)
+    v <- as.data.frame(sp::spsample(shp, x[i], type = sp, iter = 10, ...))
+    s <- Polygon(v[chull(v), ])
+    s <- Polygons(list(s), ID ='foo')
+    k <- SpatialPolygons(list(s))
     y[[i]] <- k
   }
 

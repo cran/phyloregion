@@ -29,7 +29,7 @@ phylo_community <- function(x, phy) {
 #' by \code{\link{phylo.beta.pair}} or \code{\link{phylo.beta.multi}}.
 #'
 #' \code{phylobeta} returns a list with three phylogenetic dissimilarity
-#' matrices. See \code{\link{phylo.beta.multi}} for details.
+#' matrices. See \code{\link{phylo.beta.pair}} for details.
 #' @keywords phyloregion
 #' @seealso \code{\link{read.community}}, \code{\link{phylo.betapart.core}},
 #' \code{\link{beta_core}}
@@ -45,7 +45,6 @@ phylo_community <- function(x, phy) {
 #' pb <- phylobeta(com, tree)
 #' @rdname phylobeta
 #' @author Klaus Schliep
-#' @importFrom fastmatch fmatch
 #' @importFrom betapart phylo.beta.multi phylo.beta.pair
 #' @importFrom phangorn getRoot
 #' @importFrom Matrix tril tcrossprod Diagonal
@@ -134,9 +133,9 @@ match_phylo_comm <- function(phy, comm, delete_empty_rows=TRUE) {
   }
   phytaxa <- phy$tip.label
   index <- intersect(commtaxa, phytaxa)
-  comm <- comm[, index]
+  comm <- comm[, index, drop = FALSE]
   if(delete_empty_rows){
-    comm[rowSums(comm)>0, , drop=FALSE]
+    comm <- comm[rowSums(comm)>0, , drop = FALSE]
   }
   phy <- keep.tip(phy, index)
   list(comm=comm, phy=phy)

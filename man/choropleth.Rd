@@ -4,16 +4,20 @@
 \alias{choropleth}
 \title{Bin values}
 \usage{
-choropleth(x, k = 10, style = "quantile", ...)
+choropleth(x, k = 10, breaks = "quantile", min = NULL, max = NULL)
 }
 \arguments{
 \item{x}{Vector of values to discretize.}
 
 \item{k}{Numeric, the desired number of bins to discretize.}
 
-\item{style}{one of \dQuote{equal}, \dQuote{pretty}, or \dQuote{quantile}.}
+\item{breaks}{one of \dQuote{equal}, \dQuote{pretty}, \dQuote{jenks},
+\dQuote{quantile} or numeric vector with the actual breaks by
+specifying the minimum (\code{min}) and maximum (\code{max}) bounds.}
 
-\item{\dots}{Further arguments passed to or from other methods.}
+\item{min}{the minima of the lowest bound of the break.}
+
+\item{max}{the maxima of the upper bound of the break}
 }
 \value{
 a vector with the discretized values.

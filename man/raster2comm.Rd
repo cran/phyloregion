@@ -8,7 +8,7 @@
 \usage{
 raster2comm(files)
 
-polys2comm(dat, res = 1, shp.grids = NULL, species = "species", ...)
+polys2comm(dat, res = 1, species = "species", trace = 1, ...)
 
 points2comm(
   dat,
@@ -25,7 +25,7 @@ points2comm(
 \item{files}{list of raster layer objects with the same spatial
 extent and resolution.}
 
-\item{dat}{layers of merged maps corresponding to species ranges for
+\item{dat}{layers of merged maps corresponding to species polygons for
 \code{polys2comm}; or point occurrence data frame for \code{points2comm},
 with at least three columns:
 \itemize{
@@ -36,11 +36,10 @@ with at least three columns:
 
 \item{res}{the grain size of the grid cells in decimal degrees (default).}
 
-\item{shp.grids}{if specified, the polygon shapefile of grid cells
-with a column labeled \dQuote{grids}.}
-
 \item{species}{a character string. The column with the species or taxon name.
 Default = \dQuote{species}.}
+
+\item{trace}{Trace the function; trace = 2 or higher will be more voluminous.}
 
 \item{\dots}{Further arguments passed to or from other methods.}
 
@@ -50,17 +49,20 @@ shapefile covering the boundary of the survey region.}
 \item{lon}{character with the column name of the longitude.}
 
 \item{lat}{character with the column name of the latitude.}
+
+\item{shp.grids}{if specified, the polygon shapefile of grid cells
+with a column labeled \dQuote{grids}.}
 }
 \value{
 \itemize{
-  \item comm_dat: community data frame
+  \item comm_dat: (sparse) community matrix
   \item poly_shp: shapefile of grid cells with the values per cell.
 }
 }
 \description{
 The functions \code{points2comm}, \code{polys2comm}, \code{raster2comm}
 provide convenient interfaces to convert raw distribution data often
-available as point records, extent-of-occurrence polygons and raster layers,
+available as point records, polygons and raster layers,
 respectively, to a community composition data frame at varying spatial grains
 and extents for downstream analyses.
 }
@@ -68,13 +70,15 @@ and extents for downstream analyses.
 \donttest{
 fdir <- system.file("NGAplants", package="phyloregion")
 files <- file.path(fdir, dir(fdir))
-raster2comm(files)
+ras <- raster2comm(files)
+head(ras[[1]])
 }
 
 \donttest{
 s <- readRDS(system.file("nigeria/nigeria.rds", package="phyloregion"))
 sp <- random_species(100, species=5, shp=s)
-polys2comm(dat = sp, species = "species")
+pol <- polys2comm(dat = sp, species = "species", trace=0)
+head(pol[[1]])
 }
 
 s <- readRDS(system.file("nigeria/nigeria.rds", package = "phyloregion"))
@@ -92,4 +96,5 @@ head(pt[[1]])
 \seealso{
 \code{\link[mapproj]{mapproject}} for conversion of
 latitude and longitude into projected coordinates system.
+\code{\link{long2sparse}} for conversion of community data.
 }

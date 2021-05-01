@@ -41,7 +41,8 @@ head(ras[[1]])
 ## ---- fig.align="left", fig.cap="__Figure 3.__ Species richness of plants in Nigeria across equal area grid cells. This is to demonstrate how the function `plot_swatch` works.", out.width = '50%'----
 s <- readRDS(system.file("nigeria/SR_Naija.rds", package = "phyloregion"))
 par(mar=rep(0,4))
-plot_swatch(s, values = s$SR, k = 20, leg=1, border=NA)
+plot_swatch(s, values = s$SR, leg=1, border=NA, 
+            col = hcl.colors(n=20, palette = "Blue-Red 3", rev=FALSE))
 
 ## ---- eval=TRUE---------------------------------------------------------------
 library(Matrix) 
@@ -60,7 +61,8 @@ m <- merge(africa$polys, data.frame(grids=names(Endm), WE=Endm), by="grids")
 m <- m[!is.na(m@data$WE),]
 
 par(mar=rep(0,4))
-plot_swatch(m, values = m$WE, k=20, leg = 3, border = NA)
+plot_swatch(m, values = m$WE, leg = 3, border = NA,
+            col = hcl.colors(n=20, palette = "Blue-Red 3", rev=FALSE))
 
 ## ---- fig.align="left", fig.cap="__Figure 5.__ Geographic distributions of phylogenetic diversity for woody plants of southern Africa.", out.width = '50%'----
 data(africa)
@@ -76,7 +78,8 @@ M <- M[!is.na(M@data$pd),]
 head(M)
 
 par(mar=rep(0,4))
-plot_swatch(M, values = M$pd, k=20, border=NA, leg=3)
+plot_swatch(M, values = M$pd, border=NA, leg=3,
+            col = hcl.colors(n=20, palette = "Blue-Red 3", rev=FALSE))
 
 ## ---- fig.align="left", fig.cap="__Figure 6.__ Geographic distributions of phylogenetic endemism for woody plants of southern Africa.", out.width = '50%'----
 library(raster)
@@ -93,7 +96,8 @@ mx <- mx[!is.na(mx@data$pe),]
 head(mx)
 
 par(mar=rep(0,4))
-plot_swatch(mx, values = mx$pe, k=20, border=NA, leg=3)
+plot_swatch(mx, values = mx$pe, border=NA, leg=3,
+            col = hcl.colors(n=20, palette = "Blue-Red 3", rev=FALSE))
 
 ## ---- fig.align="left", fig.cap="__Figure 7.__ Geographic distributions of evolutionary distinctiveness and global endangerment for woody plants of southern Africa.", out.width = '50%'----
 data(africa)
@@ -108,7 +112,8 @@ head(x)
 y <- map_trait(comm, x, FUN = sd, shp=poly)
 
 par(mar=rep(0,4))
-plot_swatch(y, y$traits, k=20, border=NA, leg=3)
+plot_swatch(y, y$traits, border=NA, leg=3,
+            col = hcl.colors(n=20, palette = "Blue-Red 3", rev=FALSE))
 
 ## -----------------------------------------------------------------------------
 data(africa)

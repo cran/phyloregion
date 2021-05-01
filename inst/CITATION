@@ -2,22 +2,23 @@ note=paste("R package version", meta$Version)
 citHeader("To cite phyloregion in publications use:")
 
 
-bibentry(bibtype = "Manual",
-    title = "phyloregion: Biogeographic Regionalization and Macroecology",
-    author = "Barnabas H. Daru and Piyal Karunarathne and Klaus Schliep",
+bibentry(bibtype = "Article",
+    author =  "Barnabas H. Daru and Piyal Karunarathne and Klaus Schliep",
+    title = "phyloregion: R package for biogeographic regionalization and macroecology",
+    journal = "Methods in Ecology and Evolution",
+    volume = "11",
+    doi = "10.1111/2041-210X.13478",
+    pages = "1483--1491",
     year = "2020",
-    note = "R package version 1.0.4",
-    url = "https://CRAN.R-project.org/package=phyloregion",
-    textVersion = "Daru, B. H., Karunarathne P., & Schliep K. (2020), phyloregion: R package for biogeographic regionalization and macroecology. R package version 1.0.4, https://CRAN.R-project.org/package=phyloregion"
+    textVersion = "Daru, B. H., Karunarathne P., & Schliep K. (2020), phyloregion: R package for biogeographic regionalization and macroecology. Methods in Ecology and Evolution, 11: 1483-1491. doi: 10.1111/2041-210X.13478"
 )
 
 
 bibentry(bibtype = "Article",
     author =  "Daru, B. H., Elliott, T. L., Park, D. S. & Davies, T. J.",
     title = "Understanding the Processes Underpinning Patterns of Phylogenetic Regionalization",
-    journal = "Trends in Ecology & Evolution",
+    journal = "Trends in Ecology and Evolution",
     volume = "32",
-    url = "http://dx.doi.org/10.1016/j.tree.2017.08.013",
     doi = "10.1016/j.tree.2017.08.013",
     pages = "845--860",
     year = "2017",
@@ -30,7 +31,6 @@ bibentry(bibtype = "Article",
     title = "Endemism patterns are scale dependent",
     journal = "Nature Communications",
     volume = "11",
-    url = "https://doi.org/10.1038/s41467-020-15921-6",
     doi = "10.1038/s41467-020-15921-6",
     pages = "2115",
     year = "2020",

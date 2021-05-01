@@ -1,19 +1,28 @@
 make_poly <- function(file){
-    dd <- raster(file)
-    pol <- rasterToPolygons(dd, fun=NULL, dissolve=FALSE, na.rm=FALSE)
-    proj4string(pol) <- crs(dd)
+    if (!inherits(file, "RasterLayer")) file <- raster(file)
+    pol <- rasterToPolygons(file, fun=NULL, dissolve=FALSE, na.rm=TRUE)
+    suppressWarnings(invisible(proj4string(pol) <- crs(file)))
     pol$grids <- paste0("v", seq_len(nrow(pol)))
-    xx <- as.data.frame(xyFromCell(dd, cell=seq_len(ncell(dd))))
+    xx <- as.data.frame(file, xy=TRUE, na.rm=TRUE)
     #Make dataframe of all xy coordinates
     xx$grids <- paste0("v", seq_len(nrow(xx)))
     m <- merge(pol, xx, by = "grids")
-    #names(m)[2] <- "richness"
-    names(m)[3] <- "lon"
-    names(m)[4] <- "lat"
-    m <- m[, c("grids", "lon", "lat")]
+    m <- m[, c("grids", "x", "y")]
     m
 }
 
+foo <- function(file, rast=NULL) {
+    if (!inherits(file, "RasterLayer")) file <- raster(file)
+    if(!is.null(rast)) {
+        if(!raster::compareRaster(file, rast)) stop("Raster objects are different")
+    }
+    y <- raster::as.data.frame(file, xy=TRUE, na.rm=TRUE, long=TRUE)
+    y$grids <- paste0("v", seq_len(nrow(y)))
+    y <- y[y$value>0,, drop=FALSE]
+    y <- y[, c("grids", "layer")]
+    names(y)[2] <- "species"
+    return(y)
+}
 
 progress <- function(x, FUN, ...) {
     env <- environment()
@@ -33,6 +42,20 @@ progress <- function(x, FUN, ...) {
     close(pb)
     r
 }
+
+blank <- function(x, res=NULL) {
+    e <- raster::extent(c(-180, 180, -90, 90))
+    p <- as(e, "SpatialPolygons")
+    r <- raster(ncol = 180, nrow = 180, resolution = res)
+    extent(r) <- extent(p)
+    r1 <- setValues(r, sample(x = 0:1, size = ncell(r), replace = TRUE))
+    r1[!is.na(r1)] <- 0
+    rp <- rasterize(x, r, field=1)
+    res <- merge(rp, r1)
+    names(res) <- x[[1]]
+    return(res)
+}
+
 
 #' Convert raw input distribution data to community
 #'
@@ -67,10 +90,11 @@ progress <- function(x, FUN, ...) {
 #' latitude and longitude into projected coordinates system.
 #' \code{\link{long2sparse}} for conversion of community data.
 #' @importFrom raster raster rasterToPolygons xyFromCell ncell
-#' @importFrom raster values crs
+#' @importFrom raster values crs as.data.frame compareRaster
+#' @importFrom raster rasterize setValues extent merge
 #' @importFrom sp CRS proj4string<-
 #' @importFrom utils txtProgressBar setTxtProgressBar
-#' @return
+#' @return Each of these functions generate a list of two objects as follows:
 #' \itemize{
 #'   \item comm_dat: (sparse) community matrix
 #'   \item poly_shp: shapefile of grid cells with the values per cell.
@@ -79,90 +103,76 @@ progress <- function(x, FUN, ...) {
 #' \donttest{
 #' fdir <- system.file("NGAplants", package="phyloregion")
 #' files <- file.path(fdir, dir(fdir))
-#' ras <- raster2comm(files)
+#' ras <- raster2comm(files) # Note, this function generates
+#'      # a list of two objects
 #' head(ras[[1]])
 #' }
 #'
 #' @export
 raster2comm <- function(files) {
-    poly <- make_poly(files[1])
-    tmp <- raster(files[1])
-    fg <- as.data.frame(xyFromCell(tmp, cell=1:ncell(tmp)))
-    ind1 <- paste(as.character(fg$x), as.character(fg$y), sep="_")
-    ind2 <- paste(as.character(poly$lon), as.character(poly$lat), sep="_")
-    index <- match(ind1, ind2)
-    res <- NULL
-    cells <- as.character(poly$grids)
-    if (interactive()){
-        pb <- txtProgressBar(min = 0, max = length(files), style = 3,
-                             width = getOption("width")/2L)
-    }
-
-    for(i in seq_along(files)) {
-        obj <- raster(files[i])
-        tmp <- values(obj)
-        tmp <- cells[index[tmp > 0]]
-        tmp <- tmp[!is.na(tmp)]
-        if(length(tmp) > 0) res <- rbind(res, cbind(tmp, names(obj)))
-        if (interactive()) setTxtProgressBar(pb, i)
-    }
-    if(length(tmp) > 0) colnames(res) <- c("grids", "species")
-    y <- long2sparse(as.data.frame(res))
-    return(list(comm_dat = y, poly_shp = poly))
+    pol <- make_poly(files[1])
+    pol <- pol[, "grids"]
+    m <- progress(files, foo, rast=raster(files[1]))
+    res <- do.call("rbind", m)
+    y <- long2sparse(res)
+    tmp <- data.frame(grids=row.names(y), richness=rowSums(y>0))
+    z <- sp::merge(pol, tmp, by = "grids")
+    z <- z[!is.na(z@data$richness), ]
+    return(list(comm_dat = y, poly_shp = z))
 }
 
 
 #' @rdname raster2comm
 #' @importFrom sp coordinates over CRS proj4string merge split merge
+#' @importFrom sp spTransform
 #' @importFrom methods as
 #' @importFrom utils txtProgressBar setTxtProgressBar object.size
 #' @importFrom raster raster res rasterize xyFromCell getValues
-#' @param trace Trace the function; trace = 2 or higher will be more voluminous.
 #' @examples
 #' \donttest{
 #' s <- readRDS(system.file("nigeria/nigeria.rds", package="phyloregion"))
 #' sp <- random_species(100, species=5, shp=s)
-#' pol <- polys2comm(dat = sp, species = "species", trace=0)
+#' pol <- polys2comm(dat = sp, species = "species")
 #' head(pol[[1]])
 #' }
 #'
 #' @export
-polys2comm <- function(dat, res = 1, species = "species", trace = 1, ...) {
+polys2comm <- function(dat, res = 1, species = "species", shp.grids = NULL, ...) {
 
     dat <- dat[, species, drop = FALSE]
     names(dat) <- "species"
 
-    e <- raster(dat)
-    res(e) <- res
-    s <- split(dat, f = dat$species)
-    w <- rasterize(s[[1]], e)
-    poly <- make_poly(w)
-    fg <- as.data.frame(xyFromCell(w, cell = 1:ncell(w)))
-    ind1 <- paste(as.character(fg$x), as.character(fg$y), sep = "_")
-    ind2 <- paste(as.character(poly$lon), as.character(poly$lat), sep = "_")
-    index <- match(ind1, ind2)
-    r <- NULL
-    cells <- as.character(poly$grids)[index]
-    if (object.size(dat) > 150000L && interactive() && trace > 0) {
-        m <- progress(s, function(x) {
-            obj <- rasterize(x, e)
-            tmp <- getValues(obj)
-            cells[!is.na(tmp) & (tmp>0)]
-        })
+    if (!is.null(shp.grids)) {
+        shp.grids <- shp.grids[, grepl("grids", names(shp.grids)), drop=FALSE]
+        m <- shp.grids
+
+        pj <- suppressWarnings(invisible(proj4string(m)[[1]]))
+        suppressWarnings(invisible(proj4string(m) <- CRS(pj)))
+        suppressWarnings(invisible(proj4string(dat) <- CRS("+proj=longlat +datum=WGS84")))
+        dat <- spTransform(dat, CRS(pj))
+
+        spo <- sp::over(dat, m, returnList = TRUE)
+        spo <- lapply(spo, unlist)
+        ll <- lengths(spo)
+        y <- data.frame(grids=unlist(spo), species=rep(dat@data$species, ll))
+
+        y <- long2sparse(unique(y[, c("grids", "species")]))
+        tmp <- data.frame(grids=row.names(y), richness=rowSums(y>0))
+        z <- sp::merge(m, tmp, by = "grids")
+        z <- z[!is.na(z@data$richness), ]
     } else {
-        m <- lapply(s, function(x) {
-            obj <- rasterize(x, e)
-            tmp <- getValues(obj)
-            cells[!is.na(tmp) & (tmp>0)]
-        })
+        s <- split(dat, f = dat$species)
+        files <- lapply(s, function(x) blank(x, res = res))
+        pol <- make_poly(files[[1]])
+        pol <- pol[, "grids"]
+        m <- progress(files, foo, rast=raster(files[[1]]))
+        spo <- do.call("rbind", m)
+        y <- long2sparse(spo)
+        tmp <- data.frame(grids=row.names(y), richness=rowSums(y>0))
+        z <- sp::merge(pol, tmp, by = "grids")
+        z <- z[!is.na(z@data$richness), ]
     }
 
-    spo <- data.frame(grids = unlist(m), species = rep(labels(s), lengths(m)))
-    y <- long2sparse(spo)
-
-    z <- data.frame(grids = row.names(y), richness = rowSums(y > 0))
-    z <- sp::merge(poly, z, by = "grids")
-    z <- z[!is.na(z@data$richness), ]
     return(list(comm_dat = y, poly_shp = z))
 }
 
@@ -182,7 +192,7 @@ polys2comm <- function(dat, res = 1, species = "species", trace = 1, ...) {
 #' m$taxon <- sample(species, size = nrow(m), replace = TRUE)
 #'
 #' pt <- points2comm(dat = m, mask = s, res = 0.5, lon = "lon", lat = "lat",
-#'             species = "taxon")
+#'             species = "taxon") # Note, this generates a list of two objects
 #' head(pt[[1]])
 #' @export
 points2comm <- function(dat, mask = NULL, res = 1, lon = "decimallongitude",
@@ -197,7 +207,7 @@ points2comm <- function(dat, mask = NULL, res = 1, lon = "decimallongitude",
     coordinates(dat) <- ~ lon + lat
 
     if (length(shp.grids) == 0) {
-        if (length(mask) == 0) {
+        if (is.null(mask)) {
             e <- raster::extent(c(xmin = -180, xmax = 180, ymin = -90, ymax = 90))
             p <- as(e, "SpatialPolygons")
             m <- sp::SpatialPolygonsDataFrame(p, data.frame(sp = "x"))

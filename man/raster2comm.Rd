@@ -8,7 +8,7 @@
 \usage{
 raster2comm(files)
 
-polys2comm(dat, res = 1, species = "species", trace = 1, ...)
+polys2comm(dat, res = 1, species = "species", shp.grids = NULL, ...)
 
 points2comm(
   dat,
@@ -39,7 +39,8 @@ with at least three columns:
 \item{species}{a character string. The column with the species or taxon name.
 Default = \dQuote{species}.}
 
-\item{trace}{Trace the function; trace = 2 or higher will be more voluminous.}
+\item{shp.grids}{if specified, the polygon shapefile of grid cells
+with a column labeled \dQuote{grids}.}
 
 \item{\dots}{Further arguments passed to or from other methods.}
 
@@ -49,11 +50,9 @@ shapefile covering the boundary of the survey region.}
 \item{lon}{character with the column name of the longitude.}
 
 \item{lat}{character with the column name of the latitude.}
-
-\item{shp.grids}{if specified, the polygon shapefile of grid cells
-with a column labeled \dQuote{grids}.}
 }
 \value{
+Each of these functions generate a list of two objects as follows:
 \itemize{
   \item comm_dat: (sparse) community matrix
   \item poly_shp: shapefile of grid cells with the values per cell.
@@ -70,14 +69,15 @@ and extents for downstream analyses.
 \donttest{
 fdir <- system.file("NGAplants", package="phyloregion")
 files <- file.path(fdir, dir(fdir))
-ras <- raster2comm(files)
+ras <- raster2comm(files) # Note, this function generates
+     # a list of two objects
 head(ras[[1]])
 }
 
 \donttest{
 s <- readRDS(system.file("nigeria/nigeria.rds", package="phyloregion"))
 sp <- random_species(100, species=5, shp=s)
-pol <- polys2comm(dat = sp, species = "species", trace=0)
+pol <- polys2comm(dat = sp, species = "species")
 head(pol[[1]])
 }
 
@@ -90,7 +90,7 @@ species <- paste0("sp", sample(1:1000))
 m$taxon <- sample(species, size = nrow(m), replace = TRUE)
 
 pt <- points2comm(dat = m, mask = s, res = 0.5, lon = "lon", lat = "lat",
-            species = "taxon")
+            species = "taxon") # Note, this generates a list of two objects
 head(pt[[1]])
 }
 \seealso{

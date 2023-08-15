@@ -1,428 +1,303 @@
-# write functions for each model
-# model=c("RF", "GLM", "MAXENT", "GBM") to choose models
-# run bioclim to generate points for species with limited sampling.
-
-.arcp <- function (xy)
-{
-    if (nrow(xy) < 3)
-        return(0)
-    x.segmat <- cbind(xy, rbind(xy[2:nrow(xy), ], xy[1, ]))
-    abs(sum(x.segmat[, 1] * x.segmat[, 4] - x.segmat[, 3] *
-                x.segmat[, 2]))/2
-}
-
-
-.arcpspdf <- function (spdf)
-{
-    lar <- unlist(lapply(polygons(spdf)@polygons, function(x) unlist(lapply(x@Polygons,
-                                                                            function(y) .arcp(y@coords)))))
-    lhol <- unlist(lapply(polygons(spdf)@polygons, function(x) unlist(lapply(x@Polygons,
-                                                                             function(y) y@hole))))
-    sum(lar[!lhol]) - sum(lar[lhol])
-}
-
-MCP <- function (xy, percent = 95, unin = c("m", "km"), unout = c("ha",
-                                                                  "km2", "m2"))
-{
-    if (!inherits(xy, "SpatialPoints"))
-        stop("xy should be of class SpatialPoints")
-    if (ncol(coordinates(xy)) > 2)
-        stop("xy should be defined in two dimensions")
-    pfs <- proj4string(xy)
-    if (length(percent) > 1)
-        stop("only one value is required for percent")
-    if (percent > 100) {
-        warning("The MCP is estimated using all relocations (percent>100)")
-        percent <- 100
-    }
-    unin <- match.arg(unin)
-    unout <- match.arg(unout)
-    if (inherits(xy, "SpatialPointsDataFrame")) {
-        if (ncol(xy) != 1) {
-            warning("xy should contain only one column (the id of the animals), id ignored")
-            id <- factor(rep("a", nrow(as.data.frame(xy))))
+thin_max <- function(x, cols, npoints){
+    inds <- vector(mode="numeric")
+    this.dist <- as.matrix(dist(x[,cols], upper=TRUE))
+    inds <- c(inds, as.integer(runif(1, 1, length(this.dist[,1]))))
+    inds <- c(inds, which.max(this.dist[,inds]))
+    while(length(inds) < npoints){
+        min.dists <- apply(this.dist[,inds], 1, min)
+        this.ind <- which.max(min.dists)
+        if(length(this.ind) > 1){
+            print("Breaking tie...")
+            this.ind <- this.ind[1]
         }
-        else {
-            id <- xy[[1]]
-        }
+        inds <- c(inds, this.ind)
     }
-    else {
-        id <- factor(rep("a", nrow(as.data.frame(xy))))
-    }
-    if (percent > 100) {
-        warning("The MCP is estimated using all relocations (percent>100)")
-        percent <- 100
-    }
-    if (min(table(id)) < 5)
-        stop("At least 5 locations are required to fit a home range")
-    id <- factor(id)
-    xy <- as.data.frame(coordinates(xy))
-    r <- split(xy, id)
-    est.cdg <- function(xy) apply(xy, 2, mean)
-    cdg <- lapply(r, est.cdg)
-    levid <- levels(id)
-    res <- SpatialPolygons(lapply(1:length(r), function(i) {
-        k <- levid[i]
-        df.t <- r[[levid[i]]]
-        cdg.t <- cdg[[levid[i]]]
-        dist.cdg <- function(xyt) {
-            d <- sqrt(((xyt[1] - cdg.t[1])^2) + ((xyt[2] - cdg.t[2])^2))
-            return(d)
-        }
-        di <- apply(df.t, 1, dist.cdg)
-        key <- c(1:length(di))
-        acons <- key[di <= quantile(di, percent/100)]
-        xy.t <- df.t[acons, ]
-        coords.t <- chull(xy.t[, 1], xy.t[, 2])
-        xy.bord <- xy.t[coords.t, ]
-        xy.bord <- rbind(xy.bord[nrow(xy.bord), ], xy.bord)
-        so <- Polygons(list(Polygon(as.matrix(xy.bord))), k)
-        return(so)
-    }))
-    are <- unlist(lapply(1:length(res), function(i) {
-        .arcpspdf(res[i, ])
-    }))
-    if (unin == "m") {
-        if (unout == "ha")
-            are <- are/10000
-        if (unout == "km2")
-            are <- are/1e+06
-    }
-    if (unin == "km") {
-        if (unout == "ha")
-            are <- are * 100
-        if (unout == "m2")
-            are <- are * 1e+06
-    }
-    df <- data.frame(id = unlist(lapply(1:nlevels(id), function(i) res[i]@polygons[[1]]@ID)),
-                     area = are)
-    row.names(df) <- df[, 1]
-    res <- SpatialPolygonsDataFrame(res, df)
-    if (!is.na(pfs))
-        proj4string(res) <- CRS(pfs)
-    return(res)
+    return(x[inds,])
 }
 
+#myRF <- function(x, p, q) {
+#    tf <- tuneRF(x[, 2:ncol(x)], x[, "pa"], plot=FALSE)
+#    mt <- tf[which.min(tf[,2]), 1]
+#    rf1 <- randomForest(x[, 2:ncol(x)], x[, "pa"], mtry=mt, ntree=250,
+#                        na.action = na.omit)
+#    rp <- terra::predict(p, rf1, na.rm=TRUE)
+#    erf <- pa_evaluate(predict(rf1, q[q$pa==1, ]), predict(rf1, q[q$pa==0, ]))
+#    tr <- erf@thresholds
+#    rf_fnl <- rp > tr$max_spec_sens
+#    return(RF = rf_fnl)
+#}
 
-sampleBuffer <- function(x, n_points, width=2, limits=NULL){
-    cc <- gBuffer(x, width=width)
-    if(!is.null(limits)) cc <- crop(cc, limits)
-    res <- spsample(cc, n_points, type="random")
-    res
+myGLM <- function(f, x, p, q) {
+    gm <- glm(f, family = gaussian(link = "identity"), data = x)
+    pg <- terra::predict(p, gm, type="response")
+    ge <- pa_evaluate(predict(gm, q[q$pa==1, ]), predict(gm, q[q$pa==0, ]))
+    gtr <- ge@thresholds
+    glm_fnl <- pg > gtr$max_spec_sens
+    return(GLM = glm_fnl)
 }
 
+myMAXENT <- function(p, ox, ot, xy) {
+    maxent_available <- FALSE
+    if (MaxEnt()) {
+        maxent_available <- TRUE
+        xm <- MaxEnt(p, ox)
+        mx <- terra::predict(xm, p)
+        xe <- pa_evaluate(xm, p = ot, a = xy, x = p)
+        mr <- xe@thresholds
+        MX <- mx > mr$max_spec_sens
+        return(MAXENT=MX)
+    }
+}
 
-#' Species distribution models for a range of algorithms
+#myCTA <- function(f, x, p, q) {
+#    cm <- rpart(f, data = x)
+#    pc <- terra::predict(p, cm)
+#    ce <- pa_evaluate(predict(cm, q[q$pa==1, ]), predict(cm, q[q$pa==0, ]))
+#    ctr <- ce@thresholds
+#    cta_fnl <- pc > ctr$max_spec_sens
+#    return(CTA = cta_fnl)
+#}
+
+#myGBM <- function(f, x, p, q) {
+#    gbm_mod <- gbm::gbm(f, data = x, interaction.depth = 3,
+#                        n.minobsinnode = 1, cv.folds = 5)
+#
+#    pred_gb <- terra::predict(p, gbm_mod, na.rm=TRUE)
+#    egb <- predicts::pa_evaluate(predict(gbm_mod, q[q$pa==1, ]),
+#                                 predict(gbm_mod, q[q$pa==0, ]))
+#    gb <- egb@thresholds
+#    gbm_fnl <- pred_gb > gb$max_spec_sens
+#    return(GBM = gbm_fnl)
+#}
+
+sampleBuffer <- function(p, size, width) {
+    if (max(distance(p)) > 7000000) {
+        h <- buffer(p, width = width)
+    } else {
+        h <- convHull(p)
+    }
+    spatSample(h, size = size, method = "random")
+}
+
+#' Species distribution models
 #'
 #' This function computes species distribution models using
-#' four modelling algorithms: generalized linear models,
-#' generalized boosted models, random forests, and maximum entropy (only if
-#' \code{rJava} is available). Note: this is an experimental function, and
-#' may change in the future.
+#' two modelling algorithms: generalized linear models,
+#' and maximum entropy (only if \code{rJava} is available).
+#' Note: this is an experimental function, and may change in the future.
 #'
 #' @param x A dataframe containing the species occurrences
 #' and geographic coordinates. Column 1 labeled as "species", column 2 "lon",
 #' column 3 "lat".
-#' @param predictors RasterStack of environmental descriptors on which
-#' the models will be projected
-#' @param blank A blank raster upon which the prediction layer is aggregated to.
-#' @param res Desired resolution of the predicted potential species distribution
-#' (if blank raster is not specified).
-#' @param pol A polygon shapefile specifying the boundary to restrict the
-#' prediction. If not specified, a minimum convex polygon is estimated using
-#' the input data frame of species occurrences.
-#' @param tc Integer. Tree complexity. Sets the complexity of individual trees
-#' @param lr Learning rate. Sets the weight applied to individual trees
-#' @param bf Bag fraction. Sets the proportion of observations used in selecting
-#' variables
-#' @param n.trees Number of initial trees to fit. Set at 50 by default
-#' @param k Number of groups
-#' @param step.size Number of trees to add at each cycle
-#' @param herbarium.rm Logical, remove points within 50 km of herbaria.
-#' @param n_points Minimum number of points required to successfully run
-#' a species distribution model
+#' @param predictors A \code{SpatRaster} to extract values from the
+#' locations in x on which the models will be projected.
+#' @param pol A vector polygon specifying the boundary to restrict the
+#' prediction. If \code{NULL}, the extent of input points is used.
+#' @param algorithm Character. The choice of algorithm to run the species
+#' distribution model. Available algorithms include:
+#' \itemize{
+#' \item \dQuote{all}: Calls all available algorithms: GLM, and MAXENT.
+#' \item \dQuote{GLM}: Calls only Generalized linear model.
+#' \item \dQuote{MAXENT}: Calls only Maximum entropy.
+#' }
+#' @param size Minimum number of points required to successfully run
+#' a species distribution model especially for species with few occurrences.
+#' @param thin Whether to thin occurrences
+#' @param thin.size The size of the thin occurrences.
+#' @param width Width of buffer in meter if x is in longitude/latitude CRS.
+#' @param mask logical. Should y be used to mask? Only used if pol is a SpatVector
 #' @rdname sdm
-#' @importFrom raster values extent res<- crop extract predict resample merge
-#' @importFrom raster stack calc buffer mask setValues extent<- nlayers maxValue
-#' @importFrom raster crs<-
-#' @importFrom sp coordinates CRS proj4string spsample HexPoints2SpatialPolygons
-#' @importFrom sp Polygon SpatialPolygons polygons
-#' @importFrom dismo kfold randomPoints evaluate threshold maxent gbm.step
-#' @importFrom randomForest randomForest
-#' @importFrom stats glm median formula
-#' @importFrom grDevices chull
-#' @importFrom rgeos gBuffer
+#' @importFrom terra distance convHull spatSample vect ext window<- rast nlyr
+#' @importFrom terra geom resample crop median deepcopy as.polygons predict
+#' @importFrom terra extract
+#' @importFrom predicts folds MaxEnt pa_evaluate
+#' @importFrom stats glm median formula gaussian dist runif
+#' @importFrom smoothr smooth
 #' @return A list with the following objects:
 #' \itemize{
 #'   \item \code{ensemble_raster} The ensembled raster that predicts
-#'   the potential species distribution.
-#'   \item \code{ensemble_AUC} The median AUCs of models.
-#'   \item \code{data} The dataframe that was used to implement the model.
+#'   the potential species distribution based on the algorithms selected.
+#'   \item \code{data} The dataframe of occurrences used to implement the model.
+#'   \item \code{polygon} Map polygons of the predicted distributions
+#'   analogous to extent-of-occurrence range polygon.
 #'   \item \code{indiv_models} Raster layers for the separate models that
 #'   predict the potential species distribution.
-#'   \item \code{single_AUCs} The AUCs for the seperate models.
 #' }
 #' @references
-#' Phillips, S.J., Anderson, R.P. & Schapire, R.E. (2006) Maximum entropy
-#' modeling of species geographic distributions. \emph{Ecological Modelling}
-#' \strong{190}: 231-259.
+#' Zurell, D., Franklin, J., König, C., Bouchet, P.J., Dormann, C.F., Elith, J.,
+#' Fandos, G., Feng, X., Guillera‐Arroita, G., Guisan, A., Lahoz‐Monfort, J.J.,
+#' Leitão, P.J., Park, D.S., Peterson, A.T., Rapacciuolo, G., Schmatz, D.R.,
+#' Schröder, B., Serra‐Diaz, J.M., Thuiller, W., Yates, K.L., Zimmermann, N.E.
+#' and Merow, C. (2020), A standard protocol for reporting species distribution
+#' models. \emph{Ecography}, \strong{43}: 1261-1277.
 #' @examples
 #' \donttest{
-#' library(raster)
 #' # get predictor variables
-#' f <- list.files(path=paste(system.file(package="phyloregion"), '/ex', sep=''),
-#'                      pattern='.tif', full.names=TRUE )
-#' preds <- stack(f)
+#' library(predicts)
+#' f <- system.file("ex/bio.tif", package="predicts")
+#' preds <- rast(f)
 #' #plot(preds)
+#'
 #' # get species occurrences
-#' d <- read.csv(system.file("ex/Bombax.csv", package="phyloregion"))
+#' b <- file.path(system.file(package="predicts"), "ex/bradypus.csv")
+#' d <- read.csv(b)
 #'
 #' # fit ensemble model for four algorithms
-#' mod <- sdm(d, predictors = preds)
+#' m <- sdm(d, predictors = preds, algorithm = "all")
+#' # plot(m$ensemble_raster)
+#' # plot(m$polygon, add=TRUE)
 #' }
-
 #' @export
-sdm <- function(x, pol = NULL, predictors = NULL, blank = NULL, res = 1, tc = 2,
-                lr = 0.001, bf = 0.75, n.trees = 50, step.size = n.trees, k=5,
-                herbarium.rm = TRUE, n_points = 30) {
-    x <- x[, c("species", "lon", "lat")]
-    names(x) <- c("species", "lon", "lat")
+sdm <- function(x, predictors = NULL, pol = NULL, thin = TRUE, thin.size = 500,
+                algorithm = "all", size = 50, width = 50000, mask = FALSE) {
+    x <- .matchnames(x)
     name.sp <- unique(x$species)
 
     if (is.null(predictors)) {
-        stop("you need to specify RasterStack of environmental variables")
+        stop("you need to specify RasterStack of environmental data")
     }
 
-    x <- x[, c("lon", "lat")]
-    x <- x[!is.na(x$lon) & !is.na(x$lat),]
-    x$source <- "raw"
-    coordinates(x) <- ~lon+lat
-    proj4string(x) <- CRS("+proj=longlat +datum=WGS84")
+    x <- x[, -1]
+    x <- unique(na.omit(x))
 
-    # Remove points within 50 km of herbaria
-    if (herbarium.rm) {
-        dx <- read.csv(system.file("ex/IHfeb20.csv", package="phyloregion"))
-        coordinates(dx) <- ~lon+lat
-        proj4string(dx) <- CRS("+proj=longlat +datum=WGS84")
-        herb_pol <- gBuffer(dx, width=0.5)
-        x <- x[is.na(over(x, herb_pol)),]
+    if(thin == TRUE) {
+        x <- thin_max(x=x, cols = c("lat", "lon"), npoints = thin.size)
     }
+    x$source <- "rw"
+    x <- vect(x, crs="+proj=longlat +datum=WGS84")
 
-    fam_pol <- pol
-
-    if (!is.null(pol)) {
-        x <- x[pol,]
-    }
-
-    if (nrow(x) < 5) {
-        e <- as(extent(x), "SpatialPolygons")
-        crs(e) <- "+proj=longlat +datum=WGS84"
-        pol <- suppressWarnings(invisible(gBuffer(e, width=2)))
+    if (length(x) < size) {
+        h <- geom(x, df = TRUE)
+        h <- h[, 3:4]
+        h$source <- "rw"
+        v <- sampleBuffer(x, size = size-length(x), width = width)
+        v <- geom(v, df = TRUE)
+        v <- v[, 3:4]
+        v$source <- "rn"
+        x <- rbind(h, v)
     } else {
-        pol <- suppressWarnings(invisible(gBuffer(MCP(x), width=2)))
-    }
-    #pol <- gBuffer(x, width=1)
-    pol <- SpatialPolygonsDataFrame(pol, data.frame(id=1:length(pol)),
-                                    match.ID = FALSE)
-
-    x1 <- x[pol,]
-    gc()
-
-    if (is.null(blank)) {
-        e <- raster::extent(pol)*1.5
-        p <- as(e, "SpatialPolygons")
-        r <- raster(ncol = 180, nrow = 180, resolution = res)
-        extent(r) <- extent(p)
-        r1 <- setValues(r, sample(x = 0:1, size = ncell(r), replace = TRUE))
-        blank <- resample(predictors[[1]], r1)
-        # set all values to zero
-        blank[!is.na(blank)] <- 0
+        x <- geom(x, df = TRUE)
+        x <- x[, 3:4]
+        x$source <- "rw"
     }
 
+    occ_csv <- x
+    x <- x[, -3]
 
-    if (length(x1) > 0) {
-        if(length(x1) < n_points){
-            vv <- sampleBuffer(x1, n_points - length(x1), limits=pol)
-            vv <- data.frame(vv)
-            vv$source <- "random"
-            names(vv)[c(1,2)] <- c("lon", "lat")
-            x1 <- as.data.frame(x1)
-            x1 <- rbind(x1, vv)
-        }
+    b <- extract(predictors, x[, 1:2])
+    b <- b[, -1]
 
-        # OCCURRENCE POINTS
-        occ_csv <- as.data.frame(x1)
-        occ <- occ_csv[, c("lon", "lat")]
-        fold <- dismo::kfold(occ, k=k)
-        test <- 3
-        pres_train <- occ[fold != test, ]
-        pres_test <- occ[fold == test, ]
+    if(!is.null(pol)) {
+        pol <- buffer(pol, width=width)
+    } else {
+        pol <- ext(vect(x, geom = c("x", "y"))) + 1
+    }
 
-        if (!is.null(fam_pol)) {
-            predictors <- raster::crop(predictors, fam_pol)
-        } else {
-            predictors <- raster::crop(predictors, pol)
-        }
+    predictors <- terra::crop(predictors, pol, mask = mask)
+    bg <- spatSample(predictors, size = nrow(x)*100, method = "random",
+                     na.rm = TRUE, xy = TRUE, warn = FALSE, ext=ext(pol))
+    xy <- bg[, 1:2]
+    bg <- bg[, -c(1:2)]
+    j <- data.frame(rbind(cbind(pa = 1, b), cbind(pa = 0, bg)))
+    j <- na.omit(j)
 
-        gc()
+    # for random forest
+    i <- sample(nrow(j), 0.25 * nrow(j))
+    test <- j[i,]
+    train <- j[-i,]
 
-        # only run if the maxent.jar file is available, in the right folder
-        jar <- paste(system.file(package="dismo"), "/java/maxent.jar", sep='')
+    # for maxent
+    fold <- predicts::folds(x, k=5)
+    occtest <- x[fold == 1, ]
+    occtrain <- x[fold != 1, ]
 
-        set.seed(10)
-        backg <- dismo::randomPoints(mask=predictors, n=nrow(occ)*3,
-                                     ext=extent(pol), extf = 1.1, warn = 0, p = occ)
+    # for glm
+    Preds <- names(train)[-1]
+    y <- names(train)[1]
+    Formula <- formula(paste(y," ~ ", paste(Preds, collapse=" + ")))
 
-        colnames(backg) <- c('lon', 'lat')
-
-        set.seed(0)
-        group <- dismo::kfold(backg, k=k)
-        backg_train <- backg[group != test, ]
-        backg_test <- backg[group == test, ]
-
-        train <- rbind(pres_train, backg_train)
-        pb_train <- c(rep(1, nrow(pres_train)), rep(0, nrow(backg_train)))
-        envtrain <- extract(predictors, train)
-        envtrain <- na.omit(data.frame(cbind(pa=pb_train, envtrain)))
-
-        testpres <- data.frame(extract(predictors, pres_test) )
-        testbackg <- data.frame(extract(predictors, backg_test))
-
-        Preds <- names(envtrain)[-1]
-        y <- names(envtrain)[1]
-        Formula <- formula(paste(y," ~ ", paste(Preds, collapse=" + "),'+',
-                           paste("I(", Preds, "^2)", sep = "",
-                                 collapse = " + ")))
+    if (algorithm == "all") {
+        models <- c()
 
         # 1. Random Forest
-        rf1 <- suppressWarnings(invisible(randomForest::randomForest(Formula, data=envtrain)))
-        erf <- dismo::evaluate(testpres, testbackg, rf1)
-        px <- raster::predict(predictors, rf1, ext=extent(pol))
-        tr <- threshold(erf, 'spec_sens')
-        trf <- raster::crop((px > tr), pol)
-        # use the mask function
-        zrf <- resample(mask(trf, pol), blank, method = "ngb")
-        RF <- merge(zrf, blank)
-        # TSS
-        cm_rf <- data.frame(erf@confusion)
-        tpr_rf <- cm_rf$tp / (cm_rf$tp + cm_rf$fn)
-        tnr_rf <- cm_rf$tn / (cm_rf$fp + cm_rf$tn)
-        tss_rf <- median(tpr_rf + tnr_rf - 1)
-        gc()
+        #tryCatch({
+        #    RF1 <- FALSE
+        #    rf_fnl <- myRF(x = train, p = predictors, q = test)
+        #    RF1 <- TRUE
+        #    if (RF1) {
+        #        names(rf_fnl) <- "RF"
+        #        models <- c(models, rf_fnl)
+        #    }
+        #}, error=function(e){cat("ERROR:",conditionMessage(e),"\n")})
 
         # 2. GLM
-        gm <- suppressWarnings(invisible(glm(Formula, family = "binomial", data=envtrain)))
-        ge <- dismo::evaluate(testpres, testbackg, gm)
-        pg <- predict(predictors, gm, ext=extent(pol))
-        gtr <- threshold(ge, 'spec_sens')
-        gt <- raster::crop((pg > gtr), pol)
-        # use the mask function
-        gt1 <- resample(mask(gt, pol), blank, method = "ngb")
-        GLM <- merge(gt1, blank)
-        # TSS
-        cm_gl <- data.frame(ge@confusion)
-        tpr_gl <- cm_gl$tp / (cm_gl$tp + cm_gl$fn)
-        tnr_gl <- cm_gl$tn / (cm_gl$fp + cm_gl$tn)
-        tss_glm <- median(tpr_gl + tnr_gl - 1)
-        gc()
+        tryCatch({
+            GLM1 <- FALSE
+            glm_fnl <- myGLM(f = Formula, x = train, p = predictors, q = test)
+            GLM1 <- TRUE
+            if (GLM1) {
+                names(glm_fnl) <- "GLM"
+                models <- c(models, glm_fnl)
+            }
+        }, error=function(e){cat("ERROR:",conditionMessage(e),"\n")})
 
         # 3. Maxent
-        maxent_available <- FALSE
-        if (maxent()) {
-            maxent_available <- TRUE
-            xm <- maxent(predictors, pres_train)
-            xe <- evaluate(pres_test, backg_test, xm, predictors)
-            mx <- predict(predictors, xm, ext=extent(pol), progress='')
-            mr <- threshold(xe, 'spec_sens')
-            mt <- raster::crop((mx > mr), pol)
-            # use the mask function
-            mt1 <- resample(mask(mt, pol), blank, method = "ngb")
-            MX <- merge(mt1, blank)
-            # TSS
-            cm_mx <- data.frame(xe@confusion)
-            tpr_mx <- cm_mx$tp / (cm_mx$tp + cm_mx$fn)
-            tnr_mx <- cm_mx$tn / (cm_mx$fp + cm_mx$tn)
-            tss_mx <- median(tpr_mx + tnr_mx - 1)
-        }
-
-        gc()
-
-        # 4. Generalised boosted models, GBMs
-        gbm_mod <- suppressWarnings(invisible(dismo::gbm.step(data = envtrain, gbm.x = Preds,
-                                                              gbm.y=y, family = "bernoulli",
-                                                              tree.complexity = tc,
-                                                              learning.rate = lr,
-                                                              bag.fraction = bf,
-                                                              verbose = TRUE, silent = TRUE,
-                                                              plot.main = FALSE,
-                                                              step.size = step.size,
-                                                              n.trees = n.trees)))
-
-        egb <- suppressMessages(invisible(evaluate(testpres, testbackg, gbm_mod)))
-        pred_gb <- raster::predict(object = predictors, model = gbm_mod,
-                                   n.trees = gbm_mod$gbm.call$best.trees,
-                                   type = "response", na.rm = TRUE)
-        gb <- gbm_mod$cv.statistics$cv.threshold
-        gbf <- raster::crop((pred_gb > gb), pol)
-        # use the mask function
-        gbm1 <- resample(mask(gbf, pol), blank, method = "ngb")
-        GBM <- merge(gbm1, blank)
-        # TSS
-        cm_gb <- data.frame(egb@confusion)
-        tpr_gb <- cm_gb$tp / (cm_gb$tp + cm_gb$fn)
-        tnr_gb <- cm_gb$tn / (cm_gb$fp + cm_gb$tn)
-        tss_gbm <- median(tpr_gb + tnr_gb - 1)
-        gc()
-
-        if (maxent_available) {
-            models <- stack(RF, GLM, MX, GBM)
-            names(models) <- c("RF", "GLM", "MAXENT", "GBM")
-            m <- models[[which(!maxValue(models)==0)]]
-            if (nlayers(m) > 1) {
-                m <- calc(m, median, forceapply=TRUE)
+        tryCatch({
+            MX1 <- FALSE
+            MX <- myMAXENT(p=predictors, ox=occtrain, xy=xy, ot=occtest)
+            MX1 <- TRUE
+            if (MX1) {
+                names(MX) <- "MAXENT"
+                models <- c(models, MX)
             }
-            spo <- m==1
+        }, error=function(e){cat("ERROR:",conditionMessage(e),"\n")})
 
-            aucs <- c(auc_RF=erf@auc, auc_GLM=ge@auc, auc_MAXENT=xe@auc,
-                      auc_GBM=egb@auc)
-            m_auc <- median(aucs)
+        # 4. gbm
+        #tryCatch({
+        #    GBM1 <- FALSE
+        #    gbm_fnl <- myGBM(f = Formula, x = train, p = predictors, q = test)
+        #    GBM1 <- TRUE
+        #    if (GBM1) {
+        #        names(gbm_fnl) <- "GBM"
+        #        models <- c(models, gbm_fnl)
+        #    }
+        #}, error=function(e){cat("ERROR:",conditionMessage(e),"\n")})
 
-            indiv_TSS <- c(TSS_RF=tss_rf, TSS_GLM=tss_glm, TSS_MAXENT=tss_mx,
-                           TSS_GBM=tss_gbm)
-            TSS <- median(indiv_TSS)
+        # 5. CTA
+        #tryCatch({
+        #    CTA1 <- FALSE
+        #    cta_fnl <- myCTA(f = Formula, x = train, p = predictors, q = test)
+        #    CTA1 <- TRUE
+        #    if (CTA1) {
+        #        names(cta_fnl) <- "CTA"
+        #        models <- c(models, cta_fnl)
+        #    }
+        #}, error=function(e){cat("ERROR:",conditionMessage(e),"\n")})
 
-            occ_csv$species <- name.sp
-            occ_csv$AUC <- m_auc
-            occ_csv$TSS <- TSS
-            occ_csv <- occ_csv[, c("species", "lon", "lat", "source", "AUC",
-                                   "TSS")]
-        } else {
-            models <- stack(RF, GLM, GBM)
-            names(models) <- c("RF", "GLM", "GBM")
-            m <- models[[which(!maxValue(models)==0)]]
-            if (nlayers(m) > 1) {
-                m <- calc(m, median, forceapply=TRUE)
-            }
-            spo <- m==1
-
-            aucs <- c(auc_RF=erf@auc, auc_GLM=ge@auc, auc_GBM=egb@auc)
-            m_auc <- median(aucs)
-
-            indiv_TSS <- c(TSS_RF=tss_rf, TSS_GLM=tss_glm, TSS_GBM=tss_gbm)
-            TSS <- median(indiv_TSS)
-
-            occ_csv$species <- name.sp
-            occ_csv$AUC <- m_auc
-            occ_csv$TSS <- TSS
-            occ_csv <- occ_csv[, c("species", "lon", "lat", "source", "AUC",
-                                   "TSS")]
-        }
-
-        return(list(ensemble_raster = spo, ensemble_AUC = m_auc,
-                    ensemble_TSS=TSS, data=occ_csv,
-                    indiv_models=models, indiv_AUCs=aucs, indiv_TSS=indiv_TSS))
-        gc()
+        models <- rast(models)
+    } else {
+        models <- switch(algorithm,
+                         #RF = myRF(x = train, p = predictors, q = test),
+                         GLM = myGLM(f=Formula, x=train, p=predictors, q=test),
+                         MAXENT = myMAXENT(p=predictors, ox=occtrain, xy=xy,
+                                           ot=occtest),
+                         #GBM = myGBM(f=Formula, x=train, p=predictors, q=test),
+                         #CTA = myCTA(f=Formula, x=train, p=predictors, q=test)
+                         )
+        names(models) <- algorithm
     }
+    m <- models
+    if (nlyr(m) > 1) {
+        m <- terra::median(m)
+    }
+    spo <- m > 0.5
+    pol <- smooth(as.polygons(spo), method = "ksmooth")
+    names(pol)[1] <- "median"
+    pol <- pol[pol$median==1,]
+    pol$species <- name.sp
+    occ_csv$species <- name.sp
+    return(list(ensemble_raster = spo, data = occ_csv,
+                polygon = pol, indiv_models = models))
 }
 
 

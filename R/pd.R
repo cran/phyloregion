@@ -2,7 +2,8 @@
 #'
 #' \code{PD} calculates Faith's (1992) phylogenetic diversity.
 #'
-#' @param x a community matrix, i.e. an object of class matrix or Matrix.
+#' @param x a community matrix, i.e. an object of class matrix or Matrix or an
+#' object of class phyloseq.
 #' @param phy a phylogenetic tree (object of class phylo).
 #' @return a vector with the PD for all samples.
 #' @keywords cluster
@@ -22,6 +23,15 @@
 #' @rdname PD
 #' @export
 PD <- function(x, phy){
+  if(inherits(x, "phyloseq")){
+    if (requireNamespace("phyloseq", quietly = TRUE)) {
+      if(missing(phy)) phy <- phyloseq::phy_tree(x)
+      otu <- as(phyloseq::otu_table(x), "matrix")
+      if (phyloseq::taxa_are_rows(x)) otu <- t(otu)
+      x <- Matrix(otu, sparse = TRUE)
+    }
+  }
+  if(inherits(x, "matrix") && ncol(x)>2) x <- Matrix(x, sparse = TRUE)
   if(!is(x, "sparseMatrix")) stop("x needs to be a sparse matrix!")
   if(length(setdiff(colnames(x), phy$tip.label)) > 0)
     stop("There are species labels in community matrix missing in the tree!")

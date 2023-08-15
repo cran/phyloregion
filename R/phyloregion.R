@@ -1,5 +1,15 @@
+.matchgrids <- function(x) {
+    nat <- names(x)
+    SP <- paste(c("\\bSite\\b", "\\bSites\\b", "\\bgrids\\b", "\\bgrid\\b",
+                  "\\blocality\\b", "\\blocation\\b"), collapse = "|")
+    grids <- nat[grepl(SP, nat, ignore.case = TRUE)]
+    x <- x[, grids, drop = FALSE]
+    names(x) <- "grids"
+    return(x)
+}
+
 #dissolve_poly <- function(x){
-  # Now the dissolve
+# Now the dissolve
 #  x <- x[!is.na(x@data$cluster),]
 #  region <- rgeos::gUnaryUnion(x, id = x@data$cluster)
 #  # make sure row names match
@@ -11,7 +21,7 @@
 #  # And add the data back in
 #  SpatialPolygonsDataFrame(region, fx)
 #}
-#' Calculate evolutionary distinctiveness of phyloregions
+#' Compute phylogenetic regionalization and evolutionary distinctiveness of phyloregions
 #'
 #' This function estimates evolutionary distinctiveness of each phyloregion by
 #' computing the mean value of phylogenetic beta diversity between a focal
@@ -21,17 +31,17 @@
 #' @param k The desired number of phyloregions, often as determined by
 #' \code{optimal_phyloregion}.
 #' @param method the agglomeration method to be used. This should be (an
-#' unambiguous abbreviation of) one of \dQuote{ward.D}, \dQuote{ward.D2}, \dQuote{single},
-#' \dQuote{complete}, \dQuote{average} (= UPGMA), \dQuote{mcquitty} (= WPGMA), \dQuote{median}
+#' unambiguous abbreviation of) one of \dQuote{ward.D}, \dQuote{ward.D2},
+#' \dQuote{single},
+#' \dQuote{complete}, \dQuote{average} (= UPGMA), \dQuote{mcquitty} (= WPGMA),
+#' \dQuote{median}
 #' (= WPGMC) or \dQuote{centroid} (= UPGMC).
-#' @param shp a polygon shapefile of grid cells.
+#' @param pol a vector polygon of grid cells or spatial points.
 #' @param ... Further arguments passed to or from other methods.
 #' @rdname phyloregion
 #' @keywords phyloregion
 #' @importFrom stats as.dist hclust cutree
-#' @importFrom sp SpatialPolygonsDataFrame merge
-#' @importFrom sp CRS proj4string
-#' @importFrom raster text
+#' @importFrom terra merge geomtype aggregate
 #' @importFrom graphics legend par points rect segments strheight strwidth text
 #' xinch yinch lines
 #' @importFrom grDevices rgb hcl.colors as.graphicsAnnot xy.coords
@@ -41,7 +51,7 @@
 #' \itemize{
 #'   \item a data frame membership with columns grids and cluster
 #'   \item k the number of clusters
-#'   and additionally there can be an shape file and other bjects.
+#'   and additionally there can be an shape file and other objects.
 #'   This representation may still change.
 #' }
 #' @references
@@ -71,78 +81,108 @@
 #'   c(1,1,1,2,2,2,3,3,3,3,3,3,4,4,4),x=1,
 #'   dimnames = list(paste0("g", 1:6), tree$tip.label))
 #' pbc <- phylobeta(com, tree)
-#' phyloregion(pbc[[1]], k = 3)
+#' # phyloregion(pbc[[1]], k = 3)
 #' @export
-phyloregion <- function(x, k = 10, method = "average", shp = NULL, ...) {
+#'
+phyloregion <- function(x, k = 10, method = "average", pol = NULL, ...) {
 
-  Q <- as.dist(x)
-  P1 <- hclust(Q, method = method)
-  g <- cutree(P1, k)
-  dx <- data.frame(grids=names(g), cluster = unname(g))
-
-  x <- as.matrix(x)
-  colnames(x) <- rownames(x)
-
-  region.mat <- matrix(NA, k, k, dimnames = list(1:k, 1:k))
-
-  for (i in 1:k) {
-    for (j in 1:k) {
-      region.mat[i, j] <- mean(x[names(g)[g == i], names(g)[g == j]])
+    if(!inherits(x, "dist")){
+        stop("\n x must be a dist object \n")
     }
-  }
-  region.dist <- as.dist(region.mat)
-  region.mat <- as.matrix(region.dist)
-
-  evol_distinct <- colSums(region.mat) / (nrow(region.mat) - 1)
-
-  evol_distinct <- data.frame(ED = evol_distinct)
-  evol_distinct <- cbind(cluster = rownames(evol_distinct),
-    data.frame(evol_distinct, row.names = NULL))
-
-  if (length(shp) == 0) {
-    r <- list(membership=dx, k=k,
-      evol_distinct = evol_distinct, region.dist = region.dist,
-      region.df = dx)
-    class(r) <- c("phyloregion")
-    r
-  } else {
-
-    m <- sp::merge(shp, dx, by = "grids")
-    if (!inherits(m, "SpatialPolygons")) {
-      stop("Invalid geometry, may only be applied to polygons")
+    if(is.numeric(k) != TRUE){
+        stop("\n k must be a scalar \n")
     }
-    m <- m[!is.na(m@data$cluster), ]
 
-    region <- raster::aggregate(m, by = 'cluster')
+    Q <- as.dist(x)
+    P1 <- hclust(Q, method = method)
+    g <- cutree(P1, k)
+    dx <- data.frame(grids=names(g), cluster = unname(g))
 
-    #region <- dissolve_poly(m)
+    x <- as.matrix(x)
+    colnames(x) <- rownames(x)
 
-    m1 <- sp::merge(region, evol_distinct, by = "cluster")
-    proj4string(m1) <- proj4string(shp)
+    region.mat <- matrix(NA, k, k, dimnames = list(1:k, 1:k))
 
-    c1 <- vegan::metaMDS(region.dist, trace = 0)
+    for (i in 1:k) {
+        for (j in 1:k) {
+            region.mat[i, j] <- mean(x[names(g)[g == i], names(g)[g == j]])
+        }
+    }
+    region.dist <- as.dist(region.mat)
+    region.mat <- as.matrix(region.dist)
 
-    v <- data.frame(hex2RGB(hexcols(c1))@coords)
-    v$r <- v$R * 255
-    v$g <- v$G * 255
-    v$b <- v$B * 255
+    evol_distinct <- colSums(region.mat) / (nrow(region.mat) - 1)
 
-    v$COLOURS <- rgb(v$r, v$g, v$b, maxColorValue = 255)
-    v$cluster <- rownames(v)
+    evol_distinct <- data.frame(ED = evol_distinct)
+    evol_distinct <- cbind(cluster = rownames(evol_distinct),
+                           data.frame(evol_distinct, row.names = NULL))
 
-    y <- Reduce(function(x, y) merge(x, y, by = "cluster", all = TRUE),
-      list(region, v, m1))
+    if (is.null(pol)) {
 
-    index <- match(dx$cluster, y$cluster)
-    z <- cbind(dx, ED = y$ED[index], COLOURS = y$COLOURS[index])
+        c1 <- vegan::metaMDS(region.dist, trace = 0)
+        v <- data.frame(colorspace::hex2RGB(hexcols(c1))@coords)
+        v$r <- v$R * 255
+        v$g <- v$G * 255
+        v$b <- v$B * 255
 
-    # membership
+        v$COLOURS <- rgb(v$r, v$g, v$b, maxColorValue = 255)
+        v$cluster <- rownames(v)
+        y <- cbind(dx, v[match(dx$cluster, v$cluster),])
+        y <- y[-ncol(y)]
+        z <- as.data.frame(y)
 
-    r <- list(membership=dx, k=k, shp = y,
-              region.dist = region.dist, region.df = z, NMDS = c1)
-    class(r) <- "phyloregion"
-    r
-  }
+        r <- list(membership = dx, k = k,
+                  evol_distinct = evol_distinct, region.dist = region.dist,
+                  region.df = z, NMDS = c1)
+        class(r) <- c("phyloregion")
+        r
+    } else {
+        pol <- .matchgrids(pol)
+        m <- terra::merge(pol, dx, by = "grids")
+        if (geomtype(m)=="points") {
+            region <- m[!is.na(m$cluster), ]
+            m1 <- cbind(region, evol_distinct$ED[match(region$cluster,
+                                                       evol_distinct$cluster)])
+            names(m1)[3] <- "ED"
+            c1 <- vegan::metaMDS(region.dist, trace = 0)
+            v <- data.frame(hex2RGB(hexcols(c1))@coords)
+            v$r <- v$R * 255
+            v$g <- v$G * 255
+            v$b <- v$B * 255
+
+            v$COLOURS <- rgb(v$r, v$g, v$b, maxColorValue = 255)
+            v$cluster <- rownames(v)
+            y <- cbind(m1, v[match(m1$cluster, v$cluster),])
+            y <- y[-ncol(y)]
+            z <- as.data.frame(y)
+            r <- list(membership=dx, k=k, pol = y,
+                      region.dist = region.dist, region.df = z, NMDS = c1)
+            class(r) <- "phyloregion"
+        } else if (geomtype(m)=="polygons") {
+            m <- m[!is.na(m$cluster), ]
+            region <- terra::aggregate(m, by = "cluster")
+            m1 <- base::merge(region, evol_distinct, by = "cluster")
+            m1 <- m1[, c("cluster", "ED")]
+            c1 <- vegan::metaMDS(region.dist, trace = 0)
+            v <- data.frame(colorspace::hex2RGB(hexcols(c1))@coords)
+            v$r <- v$R * 255
+            v$g <- v$G * 255
+            v$b <- v$B * 255
+            v$COLOURS <- rgb(v$r, v$g, v$b, maxColorValue = 255)
+            v$cluster <- rownames(v)
+
+            y <- Reduce(function(x, y) merge(x, y, by = "cluster", all = TRUE),
+                        list(region, m1, v))
+            index <- match(dx$cluster, y$cluster)
+            z <- cbind(dx, ED = y$ED[index], COLOURS = y$COLOURS[index])
+
+            # membership
+            r <- list(membership=dx, k=k, pol = y,
+                      region.dist = region.dist, region.df = z, NMDS = c1)
+            class(r) <- "phyloregion"
+        } else stop("Invalid geometry, needs spatial vectors")
+        return(r)
+    }
 }
 
 
@@ -150,20 +190,19 @@ phyloregion <- function(x, k = 10, method = "average", shp = NULL, ...) {
 #' @importFrom igraph graph_from_incidence_matrix cluster_infomap communities
 #' @importFrom igraph membership
 #' @export
-infomap <- function(x, shp = NULL, ...){
-  x@x[x@x >1e-8] <- 1
-  g <- graph_from_incidence_matrix(x)
-  imc <- cluster_infomap(g, ...)
-  ms <- membership(imc)
-  k <- max(ms)
-  ind <- names(ms) %in% rownames(x)
-  dx <- data.frame(grids=names(ms)[ind], cluster=unname(ms)[ind])
-  if(!is.null(shp)){
-     shp <- sp::merge(shp, dx, by = "grids")
-     shp <- raster::aggregate(shp, by = 'cluster')
-     #shp <- dissolve_poly(shp)
-  }
-  result <- list(membership=dx, k=k, shp=shp)
-  class(result) <- "phyloregion"
-  result
+infomap <- function(x, pol = NULL, ...){
+    x@x[x@x >1e-8] <- 1
+    g <- graph_from_incidence_matrix(x)
+    imc <- cluster_infomap(g, ...)
+    ms <- membership(imc)
+    k <- max(ms)
+    ind <- names(ms) %in% rownames(x)
+    dx <- data.frame(grids=names(ms)[ind], cluster=unname(ms)[ind])
+    if(!is.null(pol)){
+        pol <- terra::merge(pol, dx, by = "grids")
+        pol <- terra::aggregate(pol, by = 'cluster')
+    }
+    result <- list(membership=dx, k=k, pol=pol)
+    class(result) <- "phyloregion"
+    result
 }

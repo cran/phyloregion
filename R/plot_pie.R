@@ -141,36 +141,38 @@ add_pie <- function (z, x = 0, y = 0, labels = names(z), radius = 1,
 #' Visualize biogeographic patterns using pie charts
 #'
 #' @param omega a matrix of phyloregion of probabilities of each species
-#' @param shp a polygon shapefile of grid cells with a column labeled
+#' @param pol a vector polygon of grid cells with a column labeled
 #' \dQuote{grids}.
 #' @param pie_control The list of control parameters to be passed into
 #' the add.pie function.
 #' @param legend_pie Legend for the pie plots.
-#' @param r Radius of the pie legend to be displayed
+#' @param radius Radius of the pie legend to be displayed
 #' @param legend Logical, whether to plot a legend or not.
 #' @param col List of colors for the pies.
 #' @param \dots Further arguments passed to or from other methods.
 #' @rdname plot_pie
 #' @importFrom graphics polygon par legend
-#' @importFrom sp coordinates
+#' @importFrom terra centroids as.data.frame
 #' @importFrom methods slot
 #' @importFrom colorspace LAB hex coords
 #' @importFrom utils modifyList
 #' @importFrom stats kmeans
 #' @return Returns no value, just map color pies in geographic space!
 #' @examples
+#' library(terra)
 #' data(africa)
+#' p <- vect(system.file("ex/sa.json", package = "phyloregion"))
 #' K <- ncol(africa$omega)
 #'
-#' COLRS <- phyloregion:::hue(K)
-#' plot_pie(africa$omega, shp = africa$polys, col=COLRS)
+#' CLRS <- hcl.colors(K)
+#' plot_pie(africa$omega, pol = p, col=CLRS)
 #' @export
-plot_pie <- function (omega, shp, r = 1, col=hcl.colors(5),
+plot_pie <- function (omega, pol, radius = 0.55, col=hcl.colors(5),
                       pie_control = list(), legend = FALSE,
                       legend_pie = FALSE, ...) {
 
-    index <- intersect(shp$grids, rownames(omega))
-    s <- subset(shp, shp$grids %in% index)
+    index <- intersect(pol$grids, rownames(omega))
+    s <- pol[pol$grids %in% index,]
     omega <- omega[index,]
 
     pie_control_default <- list(edges = 200, clockwise = TRUE,
@@ -178,33 +180,28 @@ plot_pie <- function (omega, shp, r = 1, col=hcl.colors(5),
                                 angle = 45, border = NA,
                                 lty = NULL, label.dist = 1.1)
     pie_control <- modifyList(pie_control_default, pie_control)
-
+    XY <-as.data.frame(centroids(s), geom="XY")[, c(2,3)]
 
     #COLRS <- hue(K, hmin=0, hmax=360, cmin=0, cmax=180, lmin=0, lmax=100,
     #                 random=FALSE)
 
     plot(s, border = NA, ...)
-        suppressWarnings(invisible(lapply(1:dim(omega)[1], function(r) {
-        do.call(add_pie, append(list(
-            z = as.integer(100 * omega[r, ]),
-            x = coordinates(s[r,])[, 1],
-            y = coordinates(s[r,])[, 2],
-            labels = c("", "", ""),
-            radius = sqrt(sapply(slot(s[r,], "polygons"),
-                                 function(i) slot(i, "area")))*0.55,
-            col = col), pie_control))
-    })))
-        if (isTRUE(legend)) {
-          legend("bottomright", legend=colnames(omega), y.intersp = 0.8, bty = "n",
-                 col = col, ncol = 2, pch = 19, pt.cex = 1.5, ...)
-        }
-        if (isTRUE(legend_pie)) {
-            rl <- (sqrt(sapply(slot(s[1,], "polygons"),
-                              function(i) slot(i, "area")))*r)*2
-            legend_pie("left", labels=colnames(omega), rd=rl, bty="n",
-                       col=col, cex=0.5, label.dist=1.3, border = NA)
-        }
 
+    for(i in seq_len(dim(omega)[1])){
+        suppressWarnings(invisible(
+        do.call(add_pie, append(list(
+            z = as.integer(100 * omega[i, ]),
+            x = XY[i,1],
+            y = XY[i,2],
+            labels = c("", "", ""),
+            radius = radius,
+            col = col), pie_control))
+        ))
+    }
+    if (isTRUE(legend)) {
+      legend("bottomright", legend=colnames(omega), y.intersp = 0.8,
+            bty = "n", col = col, ncol = 2, pch = 19, pt.cex = 1.5, ...)
+    }
 }
 
 

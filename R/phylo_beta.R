@@ -20,7 +20,7 @@ phylo_community <- function(x, phy) {
 #' pairwise and multiple-site phylogenetic dissimilarities.
 #'
 #' @aliases phylobeta phylobeta_core
-#' @param x an object of class Matrix or matrix
+#' @param x an object of class Matrix, matrix or phyloseq
 #' @param phy a phylogenetic tree (object of class phylo)
 #' @param index.family family of dissimilarity indices, partial match of
 #' "sorensen" or "jaccard".
@@ -45,11 +45,19 @@ phylo_community <- function(x, phy) {
 #' pb <- phylobeta(com, tree)
 #' @rdname phylobeta
 #' @author Klaus Schliep
-#' @importFrom betapart phylo.beta.multi phylo.beta.pair
 #' @importFrom phangorn getRoot
 #' @importFrom Matrix tril tcrossprod Diagonal
 #' @export
 phylobeta_core <- function(x, phy) {
+  if(inherits(x, "phyloseq")){
+    if (requireNamespace("phyloseq", quietly = TRUE)) {
+      if(missing(phy)) phy <- phyloseq::phy_tree(x)
+      otu <- as(phyloseq::otu_table(x), "matrix")
+      if (phyloseq::taxa_are_rows(x)) otu <- t(otu)
+      x <- Matrix(otu, sparse = TRUE)
+    }
+  }
+  if(inherits(x, "matrix") && ncol(x)>2) x <- Matrix(x, sparse=TRUE)
   if(!is(x, "sparseMatrix")) stop("x needs to be a sparse matrix!")
   if (!identical(sort(colnames(x)), sort(phy$tip.label)))
     stop("Labels of community matrix and tree differ!")
@@ -89,8 +97,41 @@ phylobeta_core <- function(x, phy) {
 #' @export
 phylobeta <- function(x, phy, index.family = "sorensen") {
   res <- phylobeta_core(x, phy)
-  p <- phylo.beta.pair(res, index.family = index.family)
+  p <- betapart::phylo.beta.pair(res, index.family = index.family)
   return(p)
+}
+
+
+
+
+
+#' UniFrac distance
+#'
+#' \code{unifrac} calculates the unweighted UniFrac distance between
+#' communities.
+#'
+#' @param x a community matrix, i.e. an object of class matrix or Matrix, or an
+#' object of class phyloseq.
+#' @param phy a phylogenetic tree (object of class phylo).
+#' @return a dist object.
+#' @keywords cluster
+#' @seealso \code{\link{PD}}, \code{\link{phylobeta}}
+#' @references
+#' Lozupone C, Knight R. (2005) UniFrac: a new phylogenetic method for comparing
+#' microbial communities. \emph{Appl Environ Microbiol.} \strong{71 (12)}:8228--35.
+#' \emph{BMC Bioinformatics} 7:371.
+#' @examples
+#' tree <- ape::read.tree(text ="((t1:1,t2:1)N2:1,(t3:1,t4:1)N3:1)N1;")
+#' com <- Matrix::sparseMatrix(c(1,3,4,1,4,5,1,2,3,4,5,6,3,4,6),
+#'   c(1,1,1,2,2,2,3,3,3,3,3,3,4,4,4),x=1,
+#'   dimnames = list(paste0("g", 1:6), tree$tip.label))
+#'
+#' unifrac(com, tree)
+#' @rdname unifrac
+#' @export
+unifrac <- function(x, phy) {
+  pbc <- phylobeta_core(x, phy)
+  pbc$sum.not.shared / (pbc$sum.not.shared + pbc$shared)
 }
 
 
@@ -143,8 +184,8 @@ match_phylo_comm <- function(phy, comm, delete_empty_rows=TRUE) {
 
 #' Taxonomic (non-phylogenetic) beta diversity
 #'
-#' Data are assumed to be presence / absence (0 / 1) and all values greater zero
-#' are assumed to reflect presence.
+#' Data are assumed to be presence / absence (0 / 1) and all values greater
+#' zero are assumed to reflect presence.
 #'
 #' \code{beta_core} is helper function to compute the basic quantities needed
 #' for computing the "sorensen" or "jaccard" index.
@@ -160,7 +201,6 @@ match_phylo_comm <- function(phy, comm, delete_empty_rows=TRUE) {
 #' \code{beta_diss} returns a list with three dissimilarity matrices. See
 #' \code{\link{beta.pair}} for details.
 #' @importFrom Matrix Matrix tcrossprod colSums
-#' @importFrom betapart beta.pair beta.multi
 #' @seealso \code{\link{betapart.core}}, \code{\link{betapart}},
 #' \code{\link{phylobeta}}
 #' @author Klaus Schliep
@@ -194,6 +234,6 @@ beta_core <- function(x) {
 #' @export
 beta_diss <- function(x, index.family = "sorensen") {
   computations <- beta_core(x)
-  res <- beta.pair(computations, index.family = index.family)
+  res <- betapart::beta.pair(computations, index.family = index.family)
   return(res)
 }

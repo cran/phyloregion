@@ -6,7 +6,7 @@
 \alias{text_NMDS}
 \title{Visualize biogeographic patterns}
 \usage{
-\method{plot}{phyloregion}(x, shp = NULL, palette = "NMDS", col = NULL, ...)
+\method{plot}{phyloregion}(x, pol = NULL, palette = "NMDS", col = NULL, label = FALSE, ...)
 
 plot_NMDS(x, ...)
 
@@ -15,7 +15,7 @@ text_NMDS(x, ...)
 \arguments{
 \item{x}{an object of class phyloregion from \code{phyloregion}}
 
-\item{shp}{a polygon shapefile of grid cells.}
+\item{pol}{a polygon shapefile of grid cells.}
 
 \item{palette}{name of the palette to generate colors from. The default,
 \dQuote{NMDS}, allows display of phyloregions in multidimensional
@@ -24,6 +24,8 @@ system. The name is matched to the list of available color palettes from
 the \code{hcl.colors} function in the \code{grDevices} package.}
 
 \item{col}{vector of colors of length equal to the number of phyloregions.}
+
+\item{label}{Logical, whether to print cluster names or not}
 
 \item{\dots}{arguments passed among methods.}
 }
@@ -34,15 +36,17 @@ No return value, called for plotting.
 Visualize biogeographic patterns
 }
 \examples{
+library(terra)
 data(africa)
 tree <- africa$phylo
 x <- africa$comm
+p <- vect(system.file("ex/sa.json", package = "phyloregion"))
 
 subphy <- match_phylo_comm(tree, x)$phy
 submat <- match_phylo_comm(tree, x)$com
 
 pbc <- phylobeta(submat, subphy)
-y <- phyloregion(pbc[[1]], shp=africa$polys)
+y <- phyloregion(pbc[[1]], pol=p)
 
 plot_NMDS(y, cex=6)
 text_NMDS(y, cex=2)

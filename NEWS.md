@@ -1,3 +1,16 @@
+# [April 25, 2023] Changes in `phyloregion` version 1.0.8.
+
+* Prepared and updated package for CRAN.
+
+* Revised all spatial functions to use functions in `terra` throughout.
+
+* Discontinued use of `raster`, `rgeos` and `sp` packages.
+
+* pd and beta diversity functions now accepts a community matrix of class matrix
+  
+  or an `phyloseq` object as input.
+
+
 # [April 30, 2021] Changes in `phyloregion` version 1.0.5
 
 * Revised `plot_swatch` to use `col` instead of palette argument.

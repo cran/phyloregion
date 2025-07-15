@@ -1,7 +1,7 @@
 ## -----------------------------------------------------------------------------
 library(phyloregion)
 
-## ---- fig.align="left", fig.cap="__Figure 2.__ Phylogenetic tree of the woody plants of southern Africa inferred from DNA barcodes using a maximum likelihood approach and transforming branch lengths to millions of years ago by enforcing a relaxed molecular clock and multiple calibrations [@Daru2015ddi]."----
+## ----fig.align="left", fig.cap="__Figure 2.__ Phylogenetic tree of the woody plants of southern Africa inferred from DNA barcodes using a maximum likelihood approach and transforming branch lengths to millions of years ago by enforcing a relaxed molecular clock and multiple calibrations [@Daru2015ddi]."----
 library(ape)
 library(Matrix)
 library(terra)
@@ -39,13 +39,13 @@ files <- file.path(fdir, dir(fdir))
 ras <- rast2comm(files) 
 head(ras[[1]][1:5, 1:5])
 
-## ---- fig.align="left", fig.cap="__Figure 3.__ Species richness of plants in Nigeria across equal area grid cells. This is to demonstrate how the function `plot` works.", out.width = '50%'----
+## ----fig.align="left", fig.cap="__Figure 3.__ Species richness of plants in Nigeria across equal area grid cells. This is to demonstrate how the function `plot` works.", out.width = '50%'----
 s <- vect(system.file("ex/SR_Naija.json", package="phyloregion"))
 par(mar=rep(0,4))
 plot(s, "SR", border=NA, type = "continuous", 
      col = hcl.colors(20, palette = "Blue-Red 3", rev=FALSE))
 
-## ---- eval=TRUE---------------------------------------------------------------
+## ----eval=TRUE----------------------------------------------------------------
 library(Matrix) 
 data(africa)
 sparse_comm <- africa$comm
@@ -53,7 +53,7 @@ dense_comm <- as.matrix(sparse_comm)
 object.size(dense_comm)
 object.size(sparse_comm)
 
-## ---- fig.align="left", fig.cap="__Figure 4.__ Geographic distributions of weighted endemism for woody plants of southern Africa.", out.width = '50%'----
+## ----fig.align="left", fig.cap="__Figure 4.__ Geographic distributions of weighted endemism for woody plants of southern Africa.", out.width = '50%'----
 library(terra)
 data(africa)
 p <- vect(system.file("ex/sa.json", package = "phyloregion"))
@@ -65,7 +65,7 @@ par(mar=rep(0,4))
 plot(m, "WE", col = hcl.colors(20, "Blue-Red 3"), 
      type="continuous", border = NA)
 
-## ---- fig.align="left", fig.cap="__Figure 5.__ Geographic distributions of phylogenetic diversity for woody plants of southern Africa.", out.width = '50%'----
+## ----fig.align="left", fig.cap="__Figure 5.__ Geographic distributions of phylogenetic diversity for woody plants of southern Africa.", out.width = '50%'----
 data(africa)
 comm <- africa$comm
 tree <- africa$phylo
@@ -82,7 +82,7 @@ par(mar=rep(0,4))
 plot(M, "pd", border=NA, type="continuous",
             col = hcl.colors(20, "Blue-Red 3"))
 
-## ---- fig.align="left", fig.cap="__Figure 6.__ Geographic distributions of phylogenetic endemism for woody plants of southern Africa.", out.width = '50%'----
+## ----fig.align="left", fig.cap="__Figure 6.__ Geographic distributions of phylogenetic endemism for woody plants of southern Africa.", out.width = '50%'----
 library(terra)
 data(africa)
 comm <- africa$comm
@@ -100,7 +100,7 @@ par(mar=rep(0,4))
 plot(mx, "pe", border=NA, type="continuous",
             col = hcl.colors(n=20, palette = "Blue-Red 3", rev=FALSE))
 
-## ---- fig.align="left", fig.cap="__Figure 7.__ Geographic distributions of evolutionary distinctiveness and global endangerment for woody plants of southern Africa.", out.width = '50%'----
+## ----fig.align="left", fig.cap="__Figure 7.__ Geographic distributions of evolutionary distinctiveness and global endangerment for woody plants of southern Africa.", out.width = '50%'----
 data(africa)
 comm <- africa$comm
 threat <- africa$IUCN
@@ -125,7 +125,7 @@ tree <- africa$phylo
 tree <- keep.tip(tree, intersect(tree$tip.label, colnames(sparse_comm)))
 pb <- phylobeta(sparse_comm, tree)
 
-## ---- message=FALSE, results='hide', warning=FALSE----------------------------
+## ----message=FALSE, results='hide', warning=FALSE-----------------------------
 y <- phyloregion(pb[[1]], pol=p)
 
 ## -----------------------------------------------------------------------------
@@ -135,6 +135,6 @@ text_NMDS(y)
 par(mar=rep(0,4))
 plot(y, palette="NMDS")
 
-## ---- eval=TRUE---------------------------------------------------------------
+## ----eval=TRUE----------------------------------------------------------------
 sessionInfo()
 

@@ -2,18 +2,20 @@
 % Please edit documentation in R/sdm.R
 \name{sdm}
 \alias{sdm}
-\title{Species distribution models}
+\title{Fast species distribution model}
 \usage{
 sdm(
   x,
-  predictors = NULL,
+  layers = NULL,
   pol = NULL,
   thin = TRUE,
   thin.size = 500,
   algorithm = "all",
   size = 50,
   width = 50000,
-  mask = FALSE
+  mask = FALSE,
+  predictors,
+  background = NULL
 )
 }
 \arguments{
@@ -21,20 +23,21 @@ sdm(
 and geographic coordinates. Column 1 labeled as "species", column 2 "lon",
 column 3 "lat".}
 
-\item{predictors}{A \code{SpatRaster} to extract values from the
-locations in x on which the models will be projected.}
+\item{layers}{A \code{SpatRaster} of predictor variables for fitting species
+distribution models from species occurrences.}
 
-\item{pol}{A vector polygon specifying the boundary to restrict the
-prediction. If \code{NULL}, the extent of input points is used.}
+\item{pol}{A vector polygon specifying the calibration area or boundary to 
+account for a more realistic dispersal capacity and ecological limitation 
+of a species. If \code{NULL}, the extent of input points is used.}
 
-\item{thin}{Whether to thin occurrences}
+\item{thin}{Whether to spatially thin occurrences}
 
 \item{thin.size}{The size of the thin occurrences.}
 
 \item{algorithm}{Character. The choice of algorithm to run the species
-distribution model. Available algorithms include:
+distribution model. For now, the available algorithms include:
 \itemize{
-\item \dQuote{all}: Calls all available algorithms: GLM, and MAXENT.
+\item \dQuote{all}: Calls all available algorithms: both GLM and MAXENT.
 \item \dQuote{GLM}: Calls only Generalized linear model.
 \item \dQuote{MAXENT}: Calls only Maximum entropy.
 }}
@@ -44,7 +47,15 @@ a species distribution model especially for species with few occurrences.}
 
 \item{width}{Width of buffer in meter if x is in longitude/latitude CRS.}
 
-\item{mask}{logical. Should y be used to mask? Only used if pol is a SpatVector}
+\item{mask}{logical. Should \code{layers} be used to mask? Only used if 
+\code{pol} is a SpatVector.}
+
+\item{predictors}{If predicting to new time points, the climate layers for
+the time points.}
+
+\item{background}{A dataframe of background points, specifying 2 columns 
+with long lat or x and y as nulls for species distribution modeling, often 
+using a vector of probability weights.}
 }
 \value{
 A list with the following objects:
@@ -77,7 +88,7 @@ b <- file.path(system.file(package="predicts"), "ex/bradypus.csv")
 d <- read.csv(b)
 
 # fit ensemble model for four algorithms
-m <- sdm(d, predictors = preds, algorithm = "all")
+# m <- sdm(d, layers = preds, predictors = preds, algorithm = "all")
 # plot(m$ensemble_raster)
 # plot(m$polygon, add=TRUE)
 }

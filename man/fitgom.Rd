@@ -84,9 +84,9 @@ An topics object list with entries
   \item \code{K} The number of latent topics estimated. If input
   \code{length(K)>1}, on output this is a single value corresponding to
   the model with the highest Bayes factor.
-  \item \code{theta} The ncol{counts} by K matrix of estimated
+  \item \code{theta} The \code{ncol(counts)} by K matrix of estimated 
   topic-phrase probabilities.
-  \item \code{omega} The nrow{counts} by K matrix of estimated
+  \item \code{omega} The \code{nrow(counts)} by K matrix of estimated
   document-topic weights.
   \item \code{BF} The log Bayes factor for each number of topics
   in the input K, against a null single topic model.
@@ -128,6 +128,6 @@ p <- vect(system.file("ex/sa.json", package = "phyloregion"))
 m <- fitgom(x=sparse2long(africa$comm), K=3)
 
 COLRS <- phyloregion:::hue(m$K)
-plot_pie(m$omega, pol = p, col=COLRS)
+plot_spatial_membership(m$omega, pol = p, col=COLRS, type="pie")
 }
 \keyword{bioregion}

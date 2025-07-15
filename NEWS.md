@@ -1,3 +1,16 @@
+# [July 14, 2025] Changes in `phyloregion` version 1.0.9.
+
+* Prepared and updated package for CRAN.
+
+* Revised and updated plot_pie to plot_spatial_membership and now uses blended color visualization.
+
+* Automatically adjusts radius depending on the projection system (e.g., EPSG:4326 vs EPSG:6933).
+
+* Added new functions backg, randpoints, rast_quantile, rast_hotspot
+
+* Updated documentation and examples accordingly.
+
+
 # [April 25, 2023] Changes in `phyloregion` version 1.0.8.
 
 * Prepared and updated package for CRAN.

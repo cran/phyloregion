@@ -1,4 +1,4 @@
-rt <- function (phy) {
+simtree <- function (phy) {
     phy$tip.label <- phy$tip.label[sample(length(phy$tip.label))]
     return(phy)
 }
@@ -75,7 +75,7 @@ PD_ses <- function(x, phy,
     obs <- PD(x, p)
     rand <- switch(model,
                    tipshuffle = lapply(seq_len(reps), function(i)
-                       PD(x, rt(p))),
+                       PD(x, simtree(p))),
                    rowwise = lapply(seq_len(reps), function(i)
                        PD(x[sample(nrow(x)),], p)),
                    colwise = lapply(seq_len(reps), function(i)
@@ -84,7 +84,7 @@ PD_ses <- function(x, phy,
     y <- do.call(rbind, rand)
     rand.mean <- apply(X = y, MARGIN = 2, FUN = mean, na.rm = TRUE)
     rand.sd <- apply(X = y, MARGIN = 2, FUN = sd, na.rm = TRUE)
-    obs.z <- (obs - rand.mean)/sqrt(rand.sd)
+    obs.z <- (obs - rand.mean)/rand.sd
     obs.rank <- apply(X = rbind(obs, y), MARGIN = 2, FUN = rank)[1, ]
     obs.rank <- ifelse(is.na(rand.mean), NA, obs.rank)
     pvalue <- obs.rank/(length(rand)+1)

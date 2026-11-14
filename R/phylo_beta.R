@@ -81,8 +81,8 @@ phylobeta_core <- function(x, phy) {
   max.not.shared <- pmax(B, C)
   min.not.shared <- pmin(B, C)
 
-  at <- structure(list(Labels = Labels, Size = l, class = "dist", Diag = FALSE,
-        Upper = FALSE), .Names = c("Labels", "Size", "class", "Diag", "Upper"))
+  at <- list(Labels = Labels, Size = l, class = "dist", Diag = FALSE,
+        Upper = FALSE)
   attributes(SHARED) <- at
   attributes(sum.not.shared) <- at
   attributes(max.not.shared) <- at

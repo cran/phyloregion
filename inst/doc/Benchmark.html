@@ -50,8 +50,9 @@ overflow: visible;
 }
 </style>
 <style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
 pre > code.sourceCode { white-space: pre; position: relative; }
-pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
 .sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
@@ -62,7 +63,7 @@ div.sourceCode { overflow: auto; }
 }
 @media print {
 pre > code.sourceCode { white-space: pre-wrap; }
-pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
 }
 pre.numberSource code
 { counter-reset: source-line 0; }
@@ -150,7 +151,6 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 div.csl-bib-body { }
 div.csl-entry {
 clear: both;
-margin-bottom: 0em;
 }
 .hanging div.csl-entry {
 margin-left:2em;
@@ -395,8 +395,8 @@ speed in various biogeographic analyses.</p>
 <code>phyloregion</code>. This dataset consists of a dated phylogeny of
 the woody plant species of southern Africa along with their geographical
 distributions. The dataset comes from a study that maps tree diversity
-hotspots in southern Africa <span class="citation">(Daru, Bank, and
-Davies 2015)</span>.</p>
+hotspots in southern Africa <span class="citation">(Daru et al.
+2015)</span>.</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">data</span>(africa)</span>
 <span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co"># subset matrix</span></span>
 <span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>X_sparse <span class="ot">&lt;-</span> africa<span class="sc">$</span>comm[<span class="dv">1</span><span class="sc">:</span><span class="dv">30</span>, ]</span>
@@ -506,10 +506,10 @@ faster and 489 times efficient in memory allocation.</p>
 <h4>2.1. Benchmarking <code>phyloregion</code> for analysis of taxonomic
 beta diversity</h4>
 <p>For analysis of taxonomic beta diversity, which compares diversity
-between communities <span class="citation">(Koleff, Gaston, and Lennon
-2003)</span>, <code>phyloregion</code> has marginal advantage over other
-packages. Nonetheless, it is 1-39 times faster and allocates 2 to 110
-times less memory than other packages.</p>
+between communities <span class="citation">(Koleff et al. 2003)</span>,
+<code>phyloregion</code> has marginal advantage over other packages.
+Nonetheless, it is 1-39 times faster and allocates 2 to 110 times less
+memory than other packages.</p>
 <div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>chk_fun <span class="ot">&lt;-</span> <span class="cf">function</span>(target, current)</span>
 <span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>    <span class="fu">all.equal</span>(target, current, <span class="at">check.attributes =</span> <span class="cn">FALSE</span>)</span>
 <span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a></span>
@@ -654,7 +654,7 @@ a dissimilarity matrix.</p>
 </div>
 <div id="references" class="section level2 unnumbered">
 <h2 class="unnumbered">REFERENCES</h2>
-<div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0">
+<div id="refs" class="references csl-bib-body hanging-indent">
 <div id="ref-hilldiv" class="csl-entry">
 Alberdi, Antton. 2019. <span>“Hilldiv: An r Package for the Integral
 Analysis of Diversity Based on Hill Numbers.”</span> <em>bioRxiv</em>.
@@ -680,8 +680,7 @@ Hester, Jim. 2020. <em>Bench: High Precision Timing of r
 Expressions</em>. <a href="https://CRAN.R-project.org/package=bench">https://CRAN.R-project.org/package=bench</a>.
 </div>
 <div id="ref-Kembel2010" class="csl-entry">
-Kembel, S. W., P. D. Cowan, M. R. Helmus, W. K. Cornwell, H. Morlon, D.
-D. Ackerly, S. P. Blomberg, and C. O. Webb. 2010. <span>“Picante:
+Kembel, S. W., P. D. Cowan, M. R. Helmus, et al. 2010. <span>“Picante:
 <span>R</span> Tools for Integrating Phylogenies and Ecology.”</span>
 <em>Bioinformatics</em> 26: 1463–64.
 </div>
